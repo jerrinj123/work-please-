@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <title>My first three.js app</title>
+
+  <!--<style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: black;
+      font-family: Arial, sans-serif;
+    }
+
+    /* Scoreboard Overlay */
+    #scoreboard {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: white;
+      text-align: center;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    #scoreboard h4 {
+      margin: 0;
+      font-size: 24px;
+      color: white;
+    }
+
+    /* Start Screen */
+    #start-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      color: white;
+      background-color: rgba(0, 0, 0, 0.85);
+      z-index: 20;
+    }
+
+    /* Game Over Screen */
+    #fail-screen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      display: none;
+      /* Hidden by default */
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      color: red;
+      background-color: rgba(0, 0, 0, 0.85);
+      z-index: 20;
+    }
+  </style> -->
+</head>
+
+<body>
+  <!-- Scoreboard UI -->
+ <div id="scoreboard">
+    <h4>Score: <span id="score-val">0</span> | Misses: <span id="miss-val">0</span>/3</h4>
+  </div>
+
+  <!-- Start Screen Overlay -->
+  <div id="start-screen">
+    <h1>Egg Catching Game</h1>
+    <p>Press 'S' to start</p>
+  </div>
+
+  <!-- Fail / Game Over Screen Overlay -->
+  <div id="fail-screen">
+    <h1>GAME OVER</h1>
+    <p style="color: white;">3 eggs missed!</p>
+    <p style="color: white;">Press 'R' to Restart</p>
+  </div>
+
+  <script type="module" src="main.js"></script>
+
+
+
+  ///java script code 
+  import * as THREE from 'three';
+import hotkeys from 'hotkeys-js';
+
+// DOM Element References
+const startScreen = document.getElementById('start-screen');
+const failScreen = document.getElementById('fail-screen');
+const scoreVal = document.getElementById('score-val');
+const missVal = document.getElementById('miss-val');
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+
+const renderer = new THREE.WebGLRenderer();
+renderer.setSize( window.innerWidth, window.innerHeight );
+renderer.setAnimationLoop( animate );
+document.body.appendChild( renderer.domElement );
+
+const ball1geo = new THREE.SphereGeometry( .2,12,12);
+const b1loader = new THREE.TextureLoader();
+const b1texture = await b1loader.loadAsync( 'BALL.jpg' );
+const b1Material = new THREE.MeshBasicMaterial( { map:b1texture } );
+
+const ball1 = new THREE.Mesh( ball1geo, b1Material );
+const ball2 = new THREE.Mesh( ball1geo, b1Material );
+const ball3 = new THREE.Mesh( ball1geo, b1Material );
+
+scene.add( ball1 );
+scene.add( ball2 );
+scene.add( ball3 );
+
+ball1.position.set(-5, getRandomInt(4, 8), 0);
+ball2.position.set(0, getRandomInt(4, 8), 0);
+ball3.position.set(5, getRandomInt(4, 8), 0);
+
+const balls = [ball1, ball2, ball3];
+
+function getRandomInt(min, max){
+    return Math.floor(Math.random() * (max - min)) + min;
+}
+
+// Helper function to reset a single ball to the top
+function resetBall(ball) {
+    ball.position.y = getRandomInt(6, 10);
+}
+
+// Helper function to reset full game state on restart
+function resetGame() {
+    score = 0;
+    misses = 0;
+    isGameOver = false;
+    
+    scoreVal.innerText = score;
+    missVal.innerText = misses;
+    failScreen.style.display = 'none';
+
+    ball1.position.set(-5, getRandomInt(4, 8), 0);
+    ball2.position.set(0, getRandomInt(4, 8), 0);
+    ball3.position.set(5, getRandomInt(4, 8), 0);
+}
+
+const basketGeo = new THREE.BoxGeometry(1.5, 0.3, 0.5);
+const basketMat = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
+const basket = new THREE.Mesh(basketGeo, basketMat);
+basket.position.set(0, -4, 0); 
+scene.add(basket);
+
+const basketSpeed = 0.30;
+const ballSpeed = 0.03;
+
+camera.position.z = 8;
+let gameStarted = false;
+let isGameOver = false;
+let score = 0;
+let misses = 0;
+
+const basketBox = new THREE.Box3();
+const ballBox = new THREE.Box3();
+
+function animate( time ) {
+    if (!gameStarted || isGameOver) return;
+
+    // Movement controls
+    if (hotkeys.isPressed('a') && basket.position.x > -6) {
+        basket.position.x -= basketSpeed;
+    }
+    if (hotkeys.isPressed('d') && basket.position.x < 6) {
+        basket.position.x += basketSpeed;
+    }
+
+    basketBox.setFromObject(basket);
+
+    // Process all ball movements and collisions in ONE loop
+    balls.forEach(ball => {
+        ball.position.y -= ballSpeed;
+        ballBox.setFromObject(ball);
+
+        // Check Basket Catch
+        if (basketBox.intersectsBox(ballBox)) {
+            score += 1;
+            scoreVal.innerText = score;
+            resetBall(ball);
+        } 
+        // Check Miss (Fell below threshold)
+        else if (ball.position.y < -5) {
+            misses += 1;
+            missVal.innerText = misses;
+            resetBall(ball);
+
+            if (misses >= 3) {
+                isGameOver = true;
+                failScreen.style.display = 'flex';
+            }
+        }
+    });
+
+    renderer.render( scene, camera );
+}
+
+// Key bindings
+hotkeys('s', function () {
+    if (!gameStarted) {
+        gameStarted = true;
+        startScreen.style.display = 'none';
+    }
+});
+
+hotkeys('r', function () {
+    if (isGameOver) {
+        resetGame();
+    }
+});
+
+
+</body>
+
+</html>
+
+
+
+
